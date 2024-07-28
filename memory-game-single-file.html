@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>משחק זיכרון צילומי</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            direction: rtl;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(to right, #0000FF, #00CED1);
+            padding: 1rem;
+        }
+        .title {
+            margin-bottom: 1rem;
+            font-size: 2rem;
+            font-weight: bold;
+            color: white;
+        }
+        .button {
+            padding: 0.5rem 1rem;
+            background-color: #1E90FF;
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 0.5rem;
+        }
+        .button:hover {
+            background-color: #4169E1;
+        }
+        .instruction, .score {
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+            color: white;
+        }
+        .game-board {
+            display: grid;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .cell {
+            width: 4rem;
+            height: 4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background-color: #E5E5E5;
+            border-radius: 0.25rem;
+        }
+        .shape-selector {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .shape {
+            width: 2.5rem;
+            height: 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 0.25rem;
+        }
+        .selected {
+            border: 4px solid #FFD700;
+        }
+        .hidden {
+            display: none;
+        }
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="container">
+        <h1 class="title">משחק זיכרון צילומי</h1>
+        <div id="gameControls">
+            <button id="startButton" class="button">התחל משחק</button>
+            <p id="timer" class="hidden">זמן נותר: <span id="timerValue">5</span> שניות</p>
+            <button id="checkButton" class="button hidden">בדוק תשובה</button>
+        </div>
+        <p id="instruction" class="instruction"></p>
+        <p id="score" class="score">ציון נוכחי: 0%</p>
+        <p id="highScore" class="score">ציון שיא: 0%</p>
+        <div id="gameBoard" class="game-board"></div>
+        <div id="shapeSelector" class="shape-selector hidden"></div>
+        <div class="button-group">
+            <button id="newGameButton" class="button">משחק חדש</button>
+            <button id="easyButton" class="button">קל (4x4)</button>
+            <button id="mediumButton" class="button">בינוני (6x6)</button>
+        </div>
+    </div>
+
+    <script>
+        const shapes = ['circle', 'square', 'triangle', 'star', 'diamond', 'heart'];
+        const colors = ['#0000FF', '#00CED1', '#1E90FF', '#4169E1', '#20B2AA', '#48D1CC'];
+
+        let board = [];
+        let playerBoard = [];
+        let gameSize = 4;
+        let gamePhase = 'preview';
+        let timer = 5;
+        let score = 0;
+        let highScore = 0;
+        let selectedShape = null;
+
+        const startButton = document.getElementById('startButton');
+        const checkButton = document.getElementById('checkButton');
+        const newGameButton = document.getElementById('newGameButton');
+        const easyButton = document.getElementById('easyButton');
+        const mediumButton = document.getElementById('mediumButton');
+        const timerElement = document.getElementById('timer');
+        const timerValueElement = document.getElementById('timerValue');
+        const instructionElement = document.getElementById('instruction');
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('highScore');
+        const gameBoardElement = document.getElementById('gameBoard');
+        const shapeSelectorElement = document.getElementById('shapeSelector');
+
+        function generateBoard(size) {
+            const items = shapes.slice(0, size * size / 2).flatMap(shape =>
+                colors.slice(0, 2).map(color => ({ shape, color }))
+            );
+            return items.sort(() => Math.random() - 0.5);
+        }
+
+        function resetGame() {
+            board = generateBoard(gameSize);
+            playerBoard = Array(board.length).fill(null);
+            gamePhase = 'preview';
+            timer = 5;
+            score = 0;
+            updateUI();
+        }
+
+        function startMemorizing() {
+            gamePhase = 'memorize';
+            updateUI();
+            startTimer();
+        }
+
+        function startTimer() {
+            const interval = setInterval(() => {
+                timer--;
+                updateUI();
+                if (timer === 0) {
+                    clearInterval(interval);
+                    gamePhase = 'play';
+                    updateUI();
+                }
+            }, 1000);
+        }
+
+        function handleShapeSelection(shape, color) {
+            selectedShape = { shape, color };
+            updateUI();
+        }
+
+        function handleCellClick(index) {
+            if (gamePhase !== 'play' || !selectedShape) return;
+            playerBoard[index] = selectedShape;
+            selectedShape = null;
+            updateUI();
+        }
+
+        function checkAnswer() {
+            let correctCount = 0;
+            for (let i = 0; i < board.length; i++) {
+                if (playerBoard[i] &&
+                    playerBoard[i].shape === board[i].shape &&
+                    playerBoard[i].color === board[i].color) {
+                    correctCount++;
+                }
+            }
+            score = Math.round((correctCount / board.length) * 100);
+            highScore = Math.max(score, highScore);
+            gamePhase = 'result';
+            updateUI();
+        }
+
+        function renderShape(shape, color) {
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("viewBox", "0 0 50 50");
+            svg.style.width = "100%";
+            svg.style.height = "100%";
+
+            let shapeElement;
+            switch (shape) {
+                case 'circle':
+                    shapeElement = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    shapeElement.setAttribute("cx", "25");
+                    shapeElement.setAttribute("cy", "25");
+                    shapeElement.setAttribute("r", "20");
+                    break;
+                case 'square':
+                    shapeElement = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    shapeElement.setAttribute("x", "5");
+                    shapeElement.setAttribute("y", "5");
+                    shapeElement.setAttribute("width", "40");
+                    shapeElement.setAttribute("height", "40");
+                    break;
+                case 'triangle':
+                    shapeElement = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                    shapeElement.setAttribute("points", "25,5 5,45 45,45");
+                    break;
+                case 'star':
+                    shapeElement = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                    shapeElement.setAttribute("points", "25,5 10,45 45,20 5,20 40,45");
+                    break;
+                case 'diamond':
+                    shapeElement = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                    shapeElement.setAttribute("points", "25,5 45,25 25,45 5,25");
+                    break;
+                case 'heart':
+                    shapeElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    shapeElement.setAttribute("d", "M25,45 A20,20 0,0,1 5,25 A20,20 0,0,1 25,5 A20,20 0,0,1 45,25 A20,20 0,0,1 25,45 Z");
+                    break;
+            }
+            shapeElement.style.fill = color;
+            svg.appendChild(shapeElement);
+            return svg;
+        }
+
+        function updateUI() {
+            // Update game controls
+            startButton.style.display = gamePhase === 'preview' ? 'block' : 'none';
+            timerElement.style.display = gamePhase === 'memorize' ? 'block' : 'none';
+            timerValueElement.textContent = timer;
+            checkButton.style.display = gamePhase === 'play' ? 'block' : 'none';
+
+            // Update instruction
+            switch (gamePhase) {
+                case 'preview':
+                    instructionElement.textContent = 'לחץ על "התחל משחק" כדי להתחיל';
+                    break;
+                case 'memorize':
+                    instructionElement.textContent = 'זכור את הצורות!';
+                    break;
+                case 'play':
+                    instructionElement.textContent = 'שים את הצורות במקומות הנכונים';
+                    break;
+                case 'result':
+                    instructionElement.textContent = `הציון שלך: ${score}%`;
+                    break;
+            }
+
+            // Update score
+            scoreElement.textContent = `ציון נוכחי: ${score}%`;
+            highScoreElement.textContent = `ציון שיא: ${highScore}%`;
+
+            // Update game board
+            gameBoardElement.innerHTML = '';
+            gameBoardElement.style.gridTemplateColumns = `repeat(${gameSize}, 1fr)`;
+            const currentBoard = gamePhase === 'memorize' ? board : playerBoard;
+            currentBoard.forEach((item, index) => {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                if (item) {
+                    cell.appendChild(renderShape(item.shape, item.color));
+                }
+                cell.addEventListener('click', () => handleCellClick(index));
+                gameBoardElement.appendChild(cell);
+            });
+
+            // Update shape selector
+            shapeSelectorElement.innerHTML = '';
+            shapeSelectorElement.style.display = gamePhase === 'play' ? 'flex' : 'none';
+            shapes.forEach(shape => {
+                colors.forEach(color => {
+                    const shapeElement = document.createElement('div');
+                    shapeElement.className = 'shape';
+                    if (selectedShape && selectedShape.shape === shape && selectedShape.color === color) {
+                        shapeElement.classList.add('selected');
+                    }
+                    shapeElement.appendChild(renderShape(shape, color));
+                    shapeElement.addEventListener('click', () => handleShapeSelection(shape, color));
+                    shapeSelectorElement.appendChild(shapeElement);
+                });
+            });
+        }
+
+        startButton.addEventListener('click', startMemorizing);
+        checkButton.addEventListener('click', checkAnswer);
+        newGameButton.addEventListener('click', resetGame);
+        easyButton.addEventListener('click', () => {
+            gameSize = 4;
+            resetGame();
+        });
+        mediumButton.addEventListener('click', () => {
+            gameSize = 6;
+            resetGame();
+        });
+
+        resetGame();
+    </script>
+</body>
+</html>
